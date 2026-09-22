@@ -1,1 +1,66 @@
+name: Scrape Kalender Libur Nasional
 
+on:
+  schedule:
+    # 00:00 UTC = 07:00 WIB (Tulungagung), tiap 3 hari (tanggal 1,4,7,...,31).
+    # Catatan: cron tidak reset rapi di batas bulan, jadi kadang jaraknya
+    # bisa jadi 1-2 hari di ujung bulan (mis. tgl 31 → 1 bulan berikutnya).
+    # Script sendiri tetap punya logika skip internal (next_check_after),
+    # jadi run ini kadang cuma "cek lalu selesai" tanpa scraping apa pun.
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Paksa scrape tahun tertentu (kosongkan = mode auto)"
+        required: false
+      force:
+        description: "Paksa scrape ulang walau belum waktunya"
+        required: false
+        default: false
+        type: boolean
+
+# Wajib supaya GITHUB_TOKEN bawaan Actions boleh nulis (push) balik ke repo
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build image dari Dockerfile yang sudah ada
+        run: docker build -t kalender-scraper .
+
+      - name: Jalankan main.py di dalam container
+        env:
+          # GITHUB_TOKEN bawaan Actions, di-scope otomatis ke repo ini saja.
+          # Script pakai token ini untuk push holidays-*.json & index.json
+          # lewat GitHub Contents API ke folder GITHUB_FOLDER.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_BRANCH: ${{ github.ref_name }}
+          GITHUB_FOLDER: kalender
+          # Opsional. Kosongkan / jangan isi secret ini kalau tidak pakai
+          # iLovePDF -> script otomatis fallback ke Tesseract OCR lokal
+          # (sudah terpasang di image lewat Dockerfile).
+          ILOVEPDF_PUBLIC_KEY: ${{ secrets.ILOVEPDF_PUBLIC_KEY }}
+          ILOVEPDF_SECRET_KEY: ${{ secrets.ILOVEPDF_SECRET_KEY }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.year }}" ]; then
+            ARGS="$ARGS --year ${{ github.event.inputs.year }}"
+          fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          docker run --rm \
+            -e GITHUB_TOKEN -e GITHUB_REPO -e GITHUB_BRANCH -e GITHUB_FOLDER \
+            -e ILOVEPDF_PUBLIC_KEY -e ILOVEPDF_SECRET_KEY \
+            kalender-scraper python main.py $ARGS
+
+      - name: Upload log run (opsional, buat debug)
+        if: always()
+        run: echo "Selesai. Cek tab Actions untuk log lengkap di atas."
