@@ -36,10 +36,12 @@ jobs:
 
       - name: Jalankan main.py di dalam container
         env:
-          # GITHUB_TOKEN bawaan Actions, di-scope otomatis ke repo ini saja.
-          # Script pakai token ini untuk push holidays-*.json & index.json
-          # lewat GitHub Contents API ke folder GITHUB_FOLDER.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pakai Personal Access Token (secret: GH_PAT) kalau opsi
+          # "Read and write permissions" di Settings > Actions > General
+          # tidak tersedia/terkunci (mis. repo di bawah organisasi).
+          # Kalau opsi itu TERSEDIA dan sudah diaktifkan, boleh ganti balik
+          # ke: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           GITHUB_REPO: ${{ github.repository }}
           GITHUB_BRANCH: ${{ github.ref_name }}
           GITHUB_FOLDER: kalender
